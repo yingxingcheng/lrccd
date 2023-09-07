@@ -34,17 +34,7 @@ def freq_grid(n, L=0.3):
     x, w = leggauss(n)
     w = 2 * L / (1 - x) ** 2 * w
     x = L * (1 + x) / (1 - x)
-    # return np.hstack(([0], x[::-1])), np.hstack(([0], w[::-1]))
     return x, w
-
-
-def get_contract_mat(large_mat, natom):
-    res = np.zeros((natom, natom))
-    length = int(large_mat.shape[0] / natom)
-    for i in range(length):
-        for j in range(length):
-            res += large_mat[i * natom: (i + 1) * natom, j * natom: (j + 1) * natom]
-    return res
 
 
 def get_gauss_legendre_points_lambda(nw=16):
@@ -66,39 +56,3 @@ def get_label_from_z(z_list):
         label_lis.append('{}{}'.format(ele, ele_dict[ele]))
     return label_lis
 
-
-def compute_response(hardness, response0, natom):
-    assert hardness.shape == response0.shape
-    N = hardness.shape[0]
-
-    matrix = np.block([
-        [hardness, np.zeros((N, 1)), np.identity(N), np.zeros((N, 1))],
-        [np.zeros((1, N)), np.zeros((1, 1)), np.zeros((1, N)), np.zeros((1, 1))],
-        [np.identity(N), np.zeros((N, 1)), response0, np.zeros((N, 1))],
-        [np.zeros((1, N)), np.zeros((1, 1)), np.zeros((1, N)), np.zeros((1, 1))]
-    ])
-    matrix[:natom, N] = 1
-    matrix[N, :natom] = 1
-    matrix[N + 1: N + 1 + natom:, -1] = 1
-    matrix[-1, N + 1: N + 1 + natom:] = 1
-    print(matrix)
-    matrix_inv = np.linalg.inv(matrix)
-    response = - matrix_inv[:N, :N]
-    return response
-
-
-def compute_response_svd(hardness, chi0, natom):
-    ndim = hardness.shape[0]
-    O = np.identity(ndim)
-    D = np.zeros((ndim,))
-    D[:natom] = 1.0
-
-    P = np.zeros((2 * ndim + 1, 2 * ndim + 1))
-    P[:ndim, :ndim] = -hardness
-    P[ndim:2 * ndim, :ndim] = P[:ndim, ndim:2 * ndim] = O
-    P[:ndim, -1] = P[-1, :ndim] = D
-    P[ndim:2 * ndim, ndim:2 * ndim] = -chi0
-
-    P_inv = np.linalg.pinv(P)
-    chi = P_inv[:ndim, :ndim]
-    return chi
