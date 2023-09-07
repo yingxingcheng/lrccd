@@ -20,7 +20,7 @@ Typically, such evaluations involve using a Dyson-like equation that originates 
 ### From Source
 
 ```bash
-git clone https://github.com/YourUsername/lrccd.git
+git clone https://github.com/yingxingcheng/lrccd.git
 cd lrccd
 pip install .
 ```
