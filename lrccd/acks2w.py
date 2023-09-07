@@ -16,9 +16,6 @@ from lrccd.util import *
 np.set_printoptions(precision=5, suppress=True)
 log.set_level(1)
 
-kcal_mol = 627.51
-eV = 27.211
-
 
 class ACKS2w(JustOnceClass):
     CACHE_FNAME = 'cache.h5'
@@ -114,15 +111,9 @@ class ACKS2w(JustOnceClass):
         self.xc = xc.lower()
         if use_gga: assert self.xc == 'pbe'
         self.agspec = agspec
-        print(self.freqs)
-
         self._setup_grid()
         self._setup_xc()
-
         self.read_cache(from_cache, refresh_cache)
-
-        # only used for Pycharm index, delete later
-        self.points_freqs_pair = None
         self.part_method = str(part_method).lower()
 
 
@@ -151,8 +142,6 @@ class ACKS2w(JustOnceClass):
                         print('{} done!'.format(job_key))
 
             if refresh_cache or self.cache.load('is_ok') == 0:
-                # this case corresponds a cache from a file
-                # refresh by force even cache is good or the cache is not finished.
                 self.refresh_cache = True
             else:
                 self.refresh_cache = False
@@ -176,8 +165,6 @@ class ACKS2w(JustOnceClass):
         self.exp = self.mol.exp_alpha
 
         # define the integration grid
-        # self.grid = BeckeMolGrid(self.mol.coordinates, self.mol.numbers,
-        #                          self.mol.pseudo_numbers, mode='keep', agspec='veryfine')
         self.grid = BeckeMolGrid(self.mol.coordinates, self.mol.numbers,
                                  self.mol.pseudo_numbers, mode='keep', agspec=self.agspec)
 
@@ -202,8 +189,6 @@ class ACKS2w(JustOnceClass):
                 self.xc_wrappers = [RLibXCWrapper('lda_x')]
             else:
                 raise RuntimeError('Unknown lda functional: {}'.format(self.xc))
-
-        # xc_wrappers = [RLibXCWrapper('gga_x_b88'), RLibXCWrapper('gga_c_lyp')]
 
     def load_cache(self, key, omega):
         """Load object from cache.
@@ -339,7 +324,7 @@ class ACKS2w(JustOnceClass):
 
     def calc_parameters(self, omega):
         """Calculate all force-field parameters of ACKS2w model, including KS response matrix,
-        Hartree contirbution to hardness and xc contribution to hardness>
+        Hartree contirbution to hardness and xc contribution to hardness.
 
         Parameters
         ----------
