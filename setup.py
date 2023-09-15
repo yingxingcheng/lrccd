@@ -35,6 +35,7 @@ if __name__ == "__main__":
         install_requires=[
             'horton>=2.1.0',
             'progress>=1.5',
+            'numpy<=1.23.0',
         ],
         extras_require={},
         classifiers=['Programming Language :: Python :: 2.7',
