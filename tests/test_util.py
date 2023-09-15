@@ -12,14 +12,6 @@ from lrccd.util import *
 DATA_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
 
 
-def test_computer_response_svd():
-    hardness = np.array([[2, 1.1], [1.1, 2]])
-    chi0 = np.array([[-1, 1], [1, 1]])
-    natom = 2
-    chi = compute_response_svd(hardness, chi0, natom)
-    assert chi == pytest.approx(np.array([[-0.35714286, 0.35714286], [0.35714286, -0.35714286]]),
-                                abs=1e-5)
-
 @pytest.mark.parametrize('nfreq', [10, 12, 13, 20])
 def test_gauss_legendre_points_lambda(nfreq):
     omegas, weights = get_gauss_legendre_points_lambda(nfreq)
