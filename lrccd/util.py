@@ -36,23 +36,3 @@ def freq_grid(n, L=0.3):
     x = L * (1 + x) / (1 - x)
     return x, w
 
-
-def get_gauss_legendre_points_lambda(nw=16):
-    pts, weights = leggauss(nw)
-    pts = pts.real
-    new_pts = 1 / 2. * pts + 1 / 2.
-    return new_pts, weights / 2.
-
-
-def get_label_from_z(z_list):
-    ele_dict = {}
-    label_lis = []
-    for z in z_list:
-        ele = periodic[int(z)].symbol
-        if ele in ele_dict.keys():
-            ele_dict[ele] += 1
-        else:
-            ele_dict[ele] = 1
-        label_lis.append('{}{}'.format(ele, ele_dict[ele]))
-    return label_lis
-

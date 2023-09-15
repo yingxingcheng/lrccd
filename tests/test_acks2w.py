@@ -67,3 +67,4 @@ def test_acks2w_polar(mol, use_imag_freq):
     assert polar == pytest.approx(polar_ref, abs=0.3)
     shutil.rmtree(output_dir)
 
+test_acks2w_polar('h2o', True)
