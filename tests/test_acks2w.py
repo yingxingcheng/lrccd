@@ -64,6 +64,14 @@ def test_acks2w_polar(mol, use_imag_freq):
         [6.06514838E-11,  8.04213953E+00, 1.20021770E-10],
         [1.42180046E-10,  1.20021770E-10, 6.89222663E+00]]
     )
+    # from horton-2.1.1
+    polar_ref2 = np.array(
+        [[ 7.16554, 0.00007, -0.00007],
+        [ 0.00007, 7.95856, -0.00005],
+        [-0.00007, -0.00005, 6.64984]]
+    )
     assert polar == pytest.approx(polar_ref, abs=0.3)
+    assert polar == pytest.approx(polar_ref2, abs=1e-3)
     shutil.rmtree(output_dir)
 
+test_acks2w_polar('h2o', True)

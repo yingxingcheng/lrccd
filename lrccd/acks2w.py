@@ -154,7 +154,7 @@ class ACKS2w(JustOnceClass):
         else:
             return Cache()
         cache = Cache()
-        for k, v in obj.iteritems():
+        for k, v in obj.items():
             cache.dump(k, v)
         return cache
 
@@ -162,8 +162,6 @@ class ACKS2w(JustOnceClass):
         """Molecular grid setup."""
         fchk_fname = os.path.join(self.dirname, self.fchk_fname)
         self.mol = IOData.from_file(fchk_fname)
-        self.exp = self.mol.exp_alpha
-
         # define the integration grid
         self.grid = BeckeMolGrid(self.mol.coordinates, self.mol.numbers,
                                  self.mol.pseudo_numbers, mode='keep', agspec=self.agspec)
@@ -307,7 +305,7 @@ class ACKS2w(JustOnceClass):
         # dump all cache
         if self.refresh_cache:
             self.cache.dump('is_ok', 1)
-            new_dict = {k: v for k, v in self.cache.iteritems()}
+            new_dict = {k: v for k, v in self.cache.items()}
             dump_h5(os.path.join(self.output_dir, self.cache_fname), new_dict)
 
     @just_once
@@ -319,7 +317,7 @@ class ACKS2w(JustOnceClass):
 
         self.do_partition()
         # compute overlap operators
-        self.olp = self.mol.obasis.compute_overlap(self.mol.lf)
+        self.olp = self.mol.obasis.compute_overlap()
         self.olp_operators = self.compute_overlap_operators()
 
     def calc_parameters(self, omega):
@@ -352,18 +350,19 @@ class ACKS2w(JustOnceClass):
             cg = np.zeros((self.nop, len(dmds)))
             for i0 in range(self.nop):
                 for i1 in range(len(dmds)):
-                    cg[i0, i1] = operators[i0].contract_two('ab,ab', dmds[i1])
+                    cg[i0, i1] = np.einsum('ab,ab', operators[i0], dmds[i1])
+
         else:
             real_fukui_av = self.dmd_fukui
             complx_fukui_av = np.zeros(self.dm_full.shape, dtype=np.complex)
-            complx_fukui_av.real[:] = real_fukui_av._array[:]
+            complx_fukui_av.real[:] = real_fukui_av[:]
             dmds = self.compute_dmds(omega) + [complx_fukui_av]
 
             # Construct the cross-grammian of the operators and the dmds, Eq. (25)
             cg = np.zeros((self.nop, len(dmds)), dtype=np.complex)
             for i0 in range(self.nop):
                 for i1 in range(len(dmds)):
-                    tmp_op = operators[i0]._array
+                    tmp_op = operators[i0]
                     cg[i0, i1] = np.einsum('ab,ab', tmp_op, dmds[i1])
 
         # We get the ks-response for free, Eq. (25)
@@ -378,16 +377,16 @@ class ACKS2w(JustOnceClass):
             pinv = np.linalg.pinv(cg, rcond=1e-8)
             dmds_orth = []
             for i0 in range(self.nop):
-                dmd = self.mol.lf.create_two_index()
+                dmd = np.zeros_like(dmds[0])
                 for i1 in range(self.nop + 1):
-                    dmd._array[:] += pinv[i1, i0] * dmds[i1]._array
+                    dmd += pinv[i1, i0] * dmds[i1]
                 dmds_orth.append(dmd)
 
             # double check: Eq. (16)
             cg_check = np.zeros((self.nop, self.nop))
             for i0 in range(self.nop):
                 for i1 in range(self.nop):
-                    cg_check[i0, i1] = operators[i0].contract_two('ab,ab', dmds_orth[i1])
+                    cg_check[i0, i1] = np.einsum('ab,ab', operators[i0], dmds_orth[i1])
 
             if self.verbose:
                 print('Orthogonality test', abs(cg_check - np.identity(self.nop)).max())
@@ -519,28 +518,26 @@ class ACKS2w(JustOnceClass):
             for ipure in range(self.npure):
                 if self.verbose:
                     print('Computing AIM multipole overlap operators', iatom, ipure)
-                op = self.mol.lf.create_two_index()
                 if ipure > 0:
                     tmp = at_weights * work[:, ipure - 1]
                 else:
                     tmp = at_weights
                 # convert weight functions to matrix based on basis sets
-                self.mol.obasis.compute_grid_density_fock(grid.points, grid.weights, tmp, op)
+                op = self.mol.obasis.compute_grid_density_fock(grid.points, grid.weights, tmp)
                 overlap_operators[(iatom, ipure)] = op
 
         # Correct the s-type overlap operators such that the sum is exactly
         # equal to the total overlap.
         if self.verbose:
             print('Correcting sum of s-type operators')
-        error_overlap = self.mol.lf.create_two_index()
+        error_overlap = np.zeros_like(overlap_operators[(0, 0)])
         for iatom in range(self.part.natom):
             atom_overlap = overlap_operators[(iatom, 0)]
-            error_overlap.iadd(atom_overlap)
-        error_overlap.iadd(self.olp, -1)
-        error_overlap.iscale(1.0 / self.part.natom)
+            error_overlap += atom_overlap
+        error_overlap -= self.olp
+        error_overlap /= self.part.natom
         for iatom in range(self.part.natom):
-            atom_overlap = overlap_operators[(iatom, 0)]
-            atom_overlap.iadd(error_overlap, -1)
+            overlap_operators[(iatom, 0)] -= error_overlap
 
         # sort the operators
         result = []
@@ -554,11 +551,9 @@ class ACKS2w(JustOnceClass):
     def compute_fukui_av(self):
         """Compute fukui density matrix from average of the HOMO and LUMO density."""
         # Add the average fukui dm to the list of dmds
-        exp = self.mol.exp_alpha
+        exp = self.mol.orb_alpha
         nocc = int(exp.occupations.sum())
-        self.dmd_fukui = self.mol.lf.create_two_index()
-        # fukui dm is approximated as average of the HOMO and LUMO density
-        self.dmd_fukui._array[:] = (np.outer(exp.coeffs[:, nocc], exp.coeffs[:, nocc]) +
+        self.dmd_fukui = (np.outer(exp.coeffs[:, nocc], exp.coeffs[:, nocc]) +
                                     np.outer(exp.coeffs[:, nocc - 1], exp.coeffs[:, nocc - 1])) / 2
 
     def compute_dmds(self, omega):
@@ -579,7 +574,7 @@ class ACKS2w(JustOnceClass):
         self.calc_potential_function()
         operators = self.olp_operators
 
-        exp = self.mol.exp_alpha
+        exp = self.mol.orb_alpha
         eta = self.eta
         nop = len(operators)
         norb = exp.nfn
@@ -589,7 +584,7 @@ class ACKS2w(JustOnceClass):
 
             # Fill the work array with the operators transformed to the orbital basis.
             for iop in range(nop):
-                tmp_obj = np.dot(exp.coeffs.T, np.dot(operators[iop]._array, exp.coeffs))
+                tmp_obj = np.dot(exp.coeffs.T, np.dot(operators[iop], exp.coeffs))
                 work.append(tmp_obj)
 
             # Compute the ratio of (n1-n2)/(epsilon1-epsilon2) for every pair of orbitals.
@@ -616,10 +611,7 @@ class ACKS2w(JustOnceClass):
 
             dmds = []
             for iop in range(nop):
-                dmd = self.mol.lf.create_two_index()
-                # The prefactor two represents cc.
-                dmd._array[:] = work[iop] * 2
-                dmds.append(dmd)
+                dmds.append(work[iop] * 2)
             return dmds
 
         if self.use_complex_func(omega):
@@ -628,8 +620,8 @@ class ACKS2w(JustOnceClass):
 
             # Fill the work array with the operators transformed to the orbital basis.
             for iop in range(nop):
-                tmp_obj1 = np.dot(exp.coeffs.T.conj(), np.dot(operators[iop]._array, exp.coeffs))
-                tmp_obj2 = np.dot(exp.coeffs.T.conj(), np.dot(operators[iop]._array, exp.coeffs))
+                tmp_obj1 = np.dot(exp.coeffs.T.conj(), np.dot(operators[iop], exp.coeffs))
+                tmp_obj2 = np.dot(exp.coeffs.T.conj(), np.dot(operators[iop], exp.coeffs))
                 work.append(np.asarray(tmp_obj1, dtype=np.complex))
                 work2.append(np.asarray(tmp_obj2, dtype=np.complex))
 
@@ -663,7 +655,7 @@ class ACKS2w(JustOnceClass):
 
             # Fill the work array with the operators transformed to the orbital basis.
             for iop in range(nop):
-                tmp_obj = np.dot(exp.coeffs.T, np.dot(operators[iop]._array, exp.coeffs))
+                tmp_obj = np.dot(exp.coeffs.T, np.dot(operators[iop], exp.coeffs))
                 work.append(np.asarray(tmp_obj))
 
             # Compute the ratio of (n1-n2)/(epsilon1-epsilon2) for every pair of orbitals.
@@ -680,10 +672,7 @@ class ACKS2w(JustOnceClass):
             # Dot each operator with the orbitals
             dmds = []
             for iop in range(nop):
-                dmd = self.mol.lf.create_two_index()
-                # here, prefactor two represents cc.
-                work[iop] = np.dot(exp.coeffs, np.dot(work[iop], exp.coeffs.T))
-                dmd._array[:] = work[iop]
+                dmd = np.dot(exp.coeffs, np.dot(work[iop], exp.coeffs.T))
                 dmds.append(dmd)
             return dmds
 
