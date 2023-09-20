@@ -483,11 +483,11 @@ class ACKS2w(JustOnceClass):
     @just_once
     def do_partition(self, lmax=3):
         """Do partition up to `lmax`"""
-        self.padb = ProAtomDB.from_file(self.atoms_db_fname)
         if self.part_method == 'mbis':
             self.part = MBISWPart(self.mol.coordinates, self.mol.numbers, self.mol.pseudo_numbers,
                                   self.grid, self.rho_gs, lmax=lmax)
         elif self.part_method == 'hirshfeldi':
+            self.padb = ProAtomDB.from_file(self.atoms_db_fname)
             self.part = HirshfeldIWPart(self.mol.coordinates, self.mol.numbers,
                                         self.mol.pseudo_numbers, self.grid, self.rho_gs, self.padb,
                                         local=True, lmax=lmax)
